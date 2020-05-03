@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using covidSim.Utils;
 
 namespace covidSim.Services
 {
@@ -14,6 +15,9 @@ namespace covidSim.Services
         private static Random _random = new Random();
         
         public const int PeopleCount = 320;
+
+        private const double InfectionRadrius = 7.0;
+        private const double ChanceOfInfection = 0.5;
         public const int FieldWidth = 1000;
         public const int FieldHeight = 500;
         public const int MaxPeopleInHouse = 10;
@@ -61,6 +65,7 @@ namespace covidSim.Services
             if (diff >= 1000)
             {
                 CalcNextStep();
+                InfectPeople();
             }
 
             return this;
@@ -77,6 +82,23 @@ namespace covidSim.Services
                     droppedOutPeople.Add(person);
             }
             droppedOutPeople.ForEach(p => People.Remove(p));
+        }
+
+        private void InfectPeople()
+        {
+            var walkingPeople = People.Where(p => p.State == PersonState.Walking).ToList();
+            var infectedPeople = walkingPeople.Where(p => p.Health == PersonHealth.Sick).ToList();
+            var healthyPeople = walkingPeople.Where(p => p.Health == PersonHealth.Healthy);
+            var pairs = 
+                from healthy in healthyPeople
+                from infected in infectedPeople
+                select (healthy, infected);
+            foreach (var (healthy, infected) in pairs)
+            {
+                if (healthy.Position.GetDistanceTo(infected.Position) <= InfectionRadrius && 
+                    _random.NextDouble() >= ChanceOfInfection)
+                    healthy.ChangeHealth(PersonHealth.Sick);
+            }
         }
     }
 }
