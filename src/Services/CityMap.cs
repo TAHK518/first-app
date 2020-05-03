@@ -9,7 +9,7 @@ namespace covidSim.Services
 
         private const int ComfortablePeopleAmountInHouse = 5;
         private const int HousesInGroup = 4;
-        private const int GroupsInRow = 2; // |..|..|..|..|  |..|..|..|..|  |..|..|..|..|  |..|..|..|..|
+        private const int GroupsInRow = 4; // |..|..|..|..|  |..|..|..|..|  |..|..|..|..|  |..|..|..|..|
         
         public const int HouseAmount = Game.PeopleCount / ComfortablePeopleAmountInHouse;
 
