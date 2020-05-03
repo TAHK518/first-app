@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using covidSim.Models;
 
 namespace covidSim.Services
@@ -7,25 +8,40 @@ namespace covidSim.Services
     {
         private const int MaxDistancePerTurn = 30;
         private static Random random = new Random();
+        private readonly CityMap map;
         private PersonState state = PersonState.AtHome;
+        private readonly CityMap map;
+        public bool IsSick;
 
-        public Person(int id, int homeId, CityMap map)
+
+        public Person(int id, int homeId, CityMap map, bool isSick)
         {
             Id = id;
             HomeId = homeId;
+            this.map = map;
+            IsSick = isSick;
+            if (isSick)
+                StepsToRecovery = 35;
+
+            this.map = map;
 
             var homeCoords = map.Houses[homeId].Coordinates.LeftTopCorner;
             var x = homeCoords.X + random.Next(HouseCoordinates.Width);
             var y = homeCoords.Y + random.Next(HouseCoordinates.Height);
             Position = new Vec(x, y);
         }
-
+        
         public int Id;
         public int HomeId;
         public Vec Position;
+        public int StepsToRecovery;
 
         public void CalcNextStep()
         {
+            StepsToRecovery--;
+            if (StepsToRecovery == 0)
+                IsSick = false;
+            
             switch (state)
             {
                 case PersonState.AtHome:
@@ -43,10 +59,42 @@ namespace covidSim.Services
         private void CalcNextStepForPersonAtHome()
         {
             var goingWalk = random.NextDouble() < 0.005;
-            if (!goingWalk) return;
+            if (!goingWalk)
+                CalcNextPositionForStayingHomePerson();
+            else
+            {
+                state = PersonState.Walking;
+                CalcNextPositionForWalkingPerson();
+            }
 
-            state = PersonState.Walking;
-            CalcNextPositionForWalkingPerson();
+        }
+
+        private void CalcNextPositionForStayingHomePerson()
+        {
+            var nextPosition = GenerateNextRandomPosition();
+
+            if (isCoordInField(nextPosition) && IsCoordsInHouse(nextPosition))
+                Position = nextPosition;
+        }
+
+        private bool IsCoordsInHouse(Vec vec)
+        {
+            var houseCoordinates = map.Houses[HomeId].Coordinates.LeftTopCorner;
+
+            return
+                vec.X >= houseCoordinates.X && vec.X <= HouseCoordinates.Width+ houseCoordinates.X &&
+                vec.Y >= houseCoordinates.Y && vec.Y <= HouseCoordinates.Height+houseCoordinates.Y;
+        }
+
+        private Vec GenerateNextRandomPosition()
+        {
+            var xLength = random.Next(MaxDistancePerTurn);
+            var yLength = MaxDistancePerTurn - xLength;
+            var direction = ChooseDirection();
+            var delta = new Vec(xLength * direction.X, yLength * direction.Y);
+            var nextPosition = new Vec(Position.X + delta.X, Position.Y + delta.Y);
+
+            return nextPosition;
         }
 
         private void CalcNextPositionForWalkingPerson()
@@ -57,7 +105,7 @@ namespace covidSim.Services
             var delta = new Vec(xLength * direction.X, yLength * direction.Y);
             var nextPosition = new Vec(Position.X + delta.X, Position.Y + delta.Y);
 
-            if (isCoordInField(nextPosition))
+            if (isCoordInField(nextPosition) && !IsCoordInAnyHouse(nextPosition))
             {
                 Position = nextPosition;
             }
@@ -122,6 +170,16 @@ namespace covidSim.Services
             var beyondField = vec.X > Game.FieldWidth || vec.Y > Game.FieldHeight;
 
             return !(belowZero || beyondField);
+        }
+
+        private bool IsCoordInAnyHouse(Vec vec) => map.Houses.Any(h => IsCoordInHouse(vec, h));
+
+        private static bool IsCoordInHouse(Vec vec, House house)
+        {
+            return vec.X > house.Coordinates.LeftTopCorner.X &&
+                   vec.X < house.Coordinates.LeftTopCorner.X + HouseCoordinates.Width &&
+                   vec.Y > house.Coordinates.LeftTopCorner.Y &&
+                   vec.Y < house.Coordinates.LeftTopCorner.Y + HouseCoordinates.Height;
         }
     }
 }
