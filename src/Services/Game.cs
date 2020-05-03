@@ -27,6 +27,11 @@ namespace covidSim.Services
 
         public static Game Instance => _gameInstance ?? (_gameInstance = new Game());
 
+        public static void Restart()
+        {
+            _gameInstance = new Game();
+        }
+
         private List<Person> CreatePopulation()
         {
             return Enumerable
