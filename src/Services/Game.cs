@@ -31,7 +31,7 @@ namespace covidSim.Services
         {
             return Enumerable
                 .Repeat(0, PeopleCount)
-                .Select((_, index) => new Person(index, FindHome(), Map))
+                .Select((_, index) => new Person(index, FindHome(), Map, index % 33 == 0))
                 .ToList();
         }
 
