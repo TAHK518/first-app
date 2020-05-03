@@ -5,14 +5,17 @@ namespace covidSim.Services
 {
     public class Person
     {
-        private const int MaxDistancePerTurn = 30;
+        private const int MaxDistancePerTurn = 20;
         private static Random random = new Random();
         private PersonState state = PersonState.AtHome;
 
-        public Person(int id, int homeId, CityMap map)
+        public Person(int id, int homeId, CityMap map, bool isSick)
         {
             Id = id;
             HomeId = homeId;
+            IsSick = isSick;
+            IsBored = false;
+            timeAtHome = 0;
 
             var homeCoords = map.Houses[homeId].Coordinates.LeftTopCorner;
             var x = homeCoords.X + random.Next(HouseCoordinates.Width);
@@ -23,18 +26,30 @@ namespace covidSim.Services
         public int Id;
         public int HomeId;
         public Vec Position;
+        public bool IsSick;
+
+        public bool IsBored;
+        
+        private int timeAtHome;
 
         public void CalcNextStep()
         {
+            if (CalcIsAtHome())
+                timeAtHome += 1;
+            else
+            {
+                timeAtHome = 0;
+            }
+            IsBored = timeAtHome >= 5;
             switch (state)
             {
-                case PersonState.AtHome:
+                case PersonState.AtHome:                    
                     CalcNextStepForPersonAtHome();
                     break;
-                case PersonState.Walking:
+                case PersonState.Walking:                  
                     CalcNextPositionForWalkingPerson();
                     break;
-                case PersonState.GoingHome:
+                case PersonState.GoingHome:                   
                     CalcNextPositionForGoingHomePerson();
                     break;
             }
@@ -65,6 +80,19 @@ namespace covidSim.Services
             {
                 CalcNextPositionForWalkingPerson();
             }
+        }
+
+        private bool CalcIsAtHome()
+        {
+            var game = Game.Instance;
+            var homeCoordLeft = game.Map.Houses[HomeId].Coordinates.LeftTopCorner;
+            var homeWidth = HouseCoordinates.Width;
+            var homeHeight = HouseCoordinates.Height;
+            if (Position.X < homeCoordLeft.X || Position.X >= homeCoordLeft.X + homeWidth)
+                return false;
+            if (Position.Y < homeCoordLeft.Y || Position.Y >= homeCoordLeft.Y + homeHeight)
+                return false;
+            return true;
         }
 
         private void CalcNextPositionForGoingHomePerson()
