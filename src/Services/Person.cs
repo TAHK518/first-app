@@ -7,23 +7,25 @@ namespace covidSim.Services
     public class Person
     {
         private const int MaxDistancePerTurn = 30;
-        private const int TicksToRot = 10;
+        private const int InitialStepsToRecovery = 35;
+        private const int InitialStepsToRot = 10;
         private const double ProbabilityOfDying = 0.000003;
         private static Random random = new Random();
-        private PersonState state = PersonState.AtHome;
         public PersonHealth Health = PersonHealth.Healthy;
         private readonly CityMap map;
 
+        internal PersonState State { get; private set; } = PersonState.AtHome;
+        
         public Person(int id, int homeId, CityMap map, bool isSick)
         {
             Id = id;
             HomeId = homeId;
+            IsSick = isSick;
+            IsBored = false;
+            timeAtHome = 0;
             this.map = map;
-            if (isSick)
-            {
-                Health = PersonHealth.Sick;
-                StepsToRecovery = 35;
-            }
+            if (isSick) 
+                ChangeHealth(PersonHealth.Sick);
 
             var homeCoords = map.Houses[homeId].Coordinates.LeftTopCorner;
             var x = homeCoords.X + random.Next(HouseCoordinates.Width);
@@ -34,6 +36,12 @@ namespace covidSim.Services
         public int Id;
         public int HomeId;
         public Vec Position;
+        public bool IsSick;
+
+        public bool IsBored;
+        
+        private int timeAtHome;
+      
         public int StepsToRecovery;
         public int StepsToRot;
 
@@ -41,30 +49,43 @@ namespace covidSim.Services
 
         public void CalcNextStep()
         {
-            if (Health == PersonHealth.Sick)
+            if (CalcIsAtHome())
+                timeAtHome += 1;
+            else
             {
-                StepsToRecovery--;
-                if (StepsToRecovery == 0)
-                    Health = PersonHealth.Healthy;
-                else if (TryToDie())
+                timeAtHome = 0;
+            }
+            IsBored = timeAtHome >= 5;
+       
+            switch (Health)
+            {
+                case PersonHealth.Dead:
+                    StepsToRot--;
                     return;
+                case PersonHealth.Sick:
+                {
+                    StepsToRecovery--;
+                    if (StepsToRecovery == 0)
+                        Health = PersonHealth.Healthy;
+                    else if (TryToDie())
+                        return;
+                    break;
+                }
             }
+            Move();
+        }
 
-            if (Health == PersonHealth.Dead)
+        private void Move()
+        {
+            switch (State)
             {
-                StepsToRot--;
-                return;
-            }
-
-            switch (state)
-            {
-                case PersonState.AtHome:
+                case PersonState.AtHome:                    
                     CalcNextStepForPersonAtHome();
                     break;
-                case PersonState.Walking:
+                case PersonState.Walking:                  
                     CalcNextPositionForWalkingPerson();
                     break;
-                case PersonState.GoingHome:
+                case PersonState.GoingHome:                   
                     CalcNextPositionForGoingHomePerson();
                     break;
             }
@@ -73,9 +94,22 @@ namespace covidSim.Services
         private bool TryToDie()
         {
             if (random.NextDouble() > ProbabilityOfDying) return false;
-            Health = PersonHealth.Dead;
-            StepsToRot = TicksToRot;
+            ChangeHealth(PersonHealth.Dead);
             return true;
+        }
+
+        public void ChangeHealth(PersonHealth next)
+        {
+            Health = next;
+            switch (next)
+            {
+                case PersonHealth.Sick:
+                    StepsToRecovery = InitialStepsToRecovery;
+                    break;
+                case PersonHealth.Dead:
+                    StepsToRot = InitialStepsToRot;
+                    break;
+            }
         }
 
         private void CalcNextStepForPersonAtHome()
@@ -85,7 +119,7 @@ namespace covidSim.Services
                 CalcNextPositionForStayingHomePerson();
             else
             {
-                state = PersonState.Walking;
+                State = PersonState.Walking;
                 CalcNextPositionForWalkingPerson();
             }
 
@@ -137,6 +171,19 @@ namespace covidSim.Services
             }
         }
 
+        private bool CalcIsAtHome()
+        {
+            var game = Game.Instance;
+            var homeCoordLeft = game.Map.Houses[HomeId].Coordinates.LeftTopCorner;
+            var homeWidth = HouseCoordinates.Width;
+            var homeHeight = HouseCoordinates.Height;
+            if (Position.X < homeCoordLeft.X || Position.X >= homeCoordLeft.X + homeWidth)
+                return false;
+            if (Position.Y < homeCoordLeft.Y || Position.Y >= homeCoordLeft.Y + homeHeight)
+                return false;
+            return true;
+        }
+
         private void CalcNextPositionForGoingHomePerson()
         {
             var game = Game.Instance;
@@ -153,7 +200,7 @@ namespace covidSim.Services
             if (distance <= MaxDistancePerTurn)
             {
                 Position = homeCenter;
-                state = PersonState.AtHome;
+                State = PersonState.AtHome;
                 return;
             }
 
@@ -168,9 +215,9 @@ namespace covidSim.Services
 
         public void GoHome()
         {
-            if (state != PersonState.Walking) return;
+            if (State != PersonState.Walking) return;
 
-            state = PersonState.GoingHome;
+            State = PersonState.GoingHome;
             CalcNextPositionForGoingHomePerson();
         }
 
