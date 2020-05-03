@@ -20,6 +20,9 @@ namespace covidSim.Services
         {
             Id = id;
             HomeId = homeId;
+            IsSick = isSick;
+            IsBored = false;
+            timeAtHome = 0;
             this.map = map;
             if (isSick) 
                 ChangeHealth(PersonHealth.Sick);
@@ -33,6 +36,12 @@ namespace covidSim.Services
         public int Id;
         public int HomeId;
         public Vec Position;
+        public bool IsSick;
+
+        public bool IsBored;
+        
+        private int timeAtHome;
+      
         public int StepsToRecovery;
         public int StepsToRot;
 
@@ -40,6 +49,14 @@ namespace covidSim.Services
 
         public void CalcNextStep()
         {
+            if (CalcIsAtHome())
+                timeAtHome += 1;
+            else
+            {
+                timeAtHome = 0;
+            }
+            IsBored = timeAtHome >= 5;
+       
             switch (Health)
             {
                 case PersonHealth.Dead:
@@ -62,13 +79,13 @@ namespace covidSim.Services
         {
             switch (State)
             {
-                case PersonState.AtHome:
+                case PersonState.AtHome:                    
                     CalcNextStepForPersonAtHome();
                     break;
-                case PersonState.Walking:
+                case PersonState.Walking:                  
                     CalcNextPositionForWalkingPerson();
                     break;
-                case PersonState.GoingHome:
+                case PersonState.GoingHome:                   
                     CalcNextPositionForGoingHomePerson();
                     break;
             }
@@ -152,6 +169,19 @@ namespace covidSim.Services
             {
                 CalcNextPositionForWalkingPerson();
             }
+        }
+
+        private bool CalcIsAtHome()
+        {
+            var game = Game.Instance;
+            var homeCoordLeft = game.Map.Houses[HomeId].Coordinates.LeftTopCorner;
+            var homeWidth = HouseCoordinates.Width;
+            var homeHeight = HouseCoordinates.Height;
+            if (Position.X < homeCoordLeft.X || Position.X >= homeCoordLeft.X + homeWidth)
+                return false;
+            if (Position.Y < homeCoordLeft.Y || Position.Y >= homeCoordLeft.Y + homeHeight)
+                return false;
+            return true;
         }
 
         private void CalcNextPositionForGoingHomePerson()
