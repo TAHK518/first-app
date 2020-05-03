@@ -7,7 +7,8 @@ namespace covidSim.Services
     public class Person
     {
         private const int MaxDistancePerTurn = 30;
-        private const int TicksToRot = 10;
+        private const int InitialStepsToRecovery = 35;
+        private const int InitialStepsToRot = 10;
         private const double ProbabilityOfDying = 0.000003;
         private static Random random = new Random();
         private PersonState state = PersonState.AtHome;
@@ -19,11 +20,8 @@ namespace covidSim.Services
             Id = id;
             HomeId = homeId;
             this.map = map;
-            if (isSick)
-            {
-                Health = PersonHealth.Sick;
-                StepsToRecovery = 35;
-            }
+            if (isSick) 
+                ChangeHealth(PersonHealth.Sick);
 
             var homeCoords = map.Houses[homeId].Coordinates.LeftTopCorner;
             var x = homeCoords.X + random.Next(HouseCoordinates.Width);
@@ -41,21 +39,26 @@ namespace covidSim.Services
 
         public void CalcNextStep()
         {
-            if (Health == PersonHealth.Sick)
+            switch (Health)
             {
-                StepsToRecovery--;
-                if (StepsToRecovery == 0)
-                    Health = PersonHealth.Healthy;
-                else if (TryToDie())
+                case PersonHealth.Dead:
+                    StepsToRot--;
                     return;
+                case PersonHealth.Sick:
+                {
+                    StepsToRecovery--;
+                    if (StepsToRecovery == 0)
+                        Health = PersonHealth.Healthy;
+                    else if (TryToDie())
+                        return;
+                    break;
+                }
             }
+            Move();
+        }
 
-            if (Health == PersonHealth.Dead)
-            {
-                StepsToRot--;
-                return;
-            }
-
+        private void Move()
+        {
             switch (state)
             {
                 case PersonState.AtHome:
@@ -73,9 +76,22 @@ namespace covidSim.Services
         private bool TryToDie()
         {
             if (random.NextDouble() > ProbabilityOfDying) return false;
-            Health = PersonHealth.Dead;
-            StepsToRot = TicksToRot;
+            ChangeHealth(PersonHealth.Dead);
             return true;
+        }
+
+        private void ChangeHealth(PersonHealth next)
+        {
+            Health = next;
+            switch (next)
+            {
+                case PersonHealth.Sick:
+                    StepsToRecovery = InitialStepsToRecovery;
+                    break;
+                case PersonHealth.Dead:
+                    StepsToRot = InitialStepsToRot;
+                    break;
+            }
         }
 
         private void CalcNextStepForPersonAtHome()
