@@ -7,37 +7,55 @@ namespace covidSim.Services
     public class Person
     {
         private const int MaxDistancePerTurn = 30;
+        private const int TicksToRot = 10;
+        private const double ProbabilityOfDying = 0.000003;
         private static Random random = new Random();
         private PersonState state = PersonState.AtHome;
+        public PersonHealth Health = PersonHealth.Healthy;
         private readonly CityMap map;
-        public bool IsSick;
 
         public Person(int id, int homeId, CityMap map, bool isSick)
         {
             Id = id;
             HomeId = homeId;
             this.map = map;
-            IsSick = isSick;
             if (isSick)
+            {
+                Health = PersonHealth.Sick;
                 StepsToRecovery = 35;
+            }
 
             var homeCoords = map.Houses[homeId].Coordinates.LeftTopCorner;
             var x = homeCoords.X + random.Next(HouseCoordinates.Width);
             var y = homeCoords.Y + random.Next(HouseCoordinates.Height);
             Position = new Vec(x, y);
         }
-        
+
         public int Id;
         public int HomeId;
         public Vec Position;
         public int StepsToRecovery;
+        public int StepsToRot;
+
+        public bool OutOfTheGame => Health == PersonHealth.Dead && StepsToRot == 0;
 
         public void CalcNextStep()
         {
-            StepsToRecovery--;
-            if (StepsToRecovery == 0)
-                IsSick = false;
-            
+            if (Health == PersonHealth.Sick)
+            {
+                StepsToRecovery--;
+                if (StepsToRecovery == 0)
+                    Health = PersonHealth.Healthy;
+                else if (TryToDie())
+                    return;
+            }
+
+            if (Health == PersonHealth.Dead)
+            {
+                StepsToRot--;
+                return;
+            }
+
             switch (state)
             {
                 case PersonState.AtHome:
@@ -50,6 +68,14 @@ namespace covidSim.Services
                     CalcNextPositionForGoingHomePerson();
                     break;
             }
+        }
+
+        private bool TryToDie()
+        {
+            if (random.NextDouble() > ProbabilityOfDying) return false;
+            Health = PersonHealth.Dead;
+            StepsToRot = TicksToRot;
+            return true;
         }
 
         private void CalcNextStepForPersonAtHome()
@@ -115,7 +141,8 @@ namespace covidSim.Services
         {
             var game = Game.Instance;
             var homeCoord = game.Map.Houses[HomeId].Coordinates.LeftTopCorner;
-            var homeCenter = new Vec(homeCoord.X + HouseCoordinates.Width / 2, homeCoord.Y + HouseCoordinates.Height / 2);
+            var homeCenter = new Vec(homeCoord.X + HouseCoordinates.Width / 2,
+                homeCoord.Y + HouseCoordinates.Height / 2);
 
             var xDiff = homeCenter.X - Position.X;
             var yDiff = homeCenter.Y - Position.Y;
@@ -132,7 +159,7 @@ namespace covidSim.Services
 
             var direction = new Vec(Math.Sign(xDiff), Math.Sign(yDiff));
 
-            var xLength = Math.Min(xDistance, MaxDistancePerTurn); 
+            var xLength = Math.Min(xDistance, MaxDistancePerTurn);
             var newX = Position.X + xLength * direction.X;
             var yLength = MaxDistancePerTurn - xLength;
             var newY = Position.Y + yLength * direction.Y;
