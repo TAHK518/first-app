@@ -2,8 +2,19 @@
     
 }
 
+.container {
+    display: flex;
+    justify-content: center;
+}
+
 .title {
     font-size: 32px;
     font-weight: normal;
     text-align: center;
+    display: inline-block;
+}
+
+.button {
+    display: inline-block;
+    margin: 15px 0 15px 30px;
 }

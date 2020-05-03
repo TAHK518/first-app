@@ -27,6 +27,11 @@ namespace covidSim.Services
 
         public static Game Instance => _gameInstance ?? (_gameInstance = new Game());
 
+        public static void Restart()
+        {
+            _gameInstance = new Game();
+        }
+
         private List<Person> CreatePopulation()
         {
             return Enumerable
@@ -64,10 +69,14 @@ namespace covidSim.Services
         private void CalcNextStep()
         {
             _lastUpdate = DateTime.Now;
+            var droppedOutPeople = new List<Person>();
             foreach (var person in People)
             {
                 person.CalcNextStep();
+                if (person.OutOfTheGame)
+                    droppedOutPeople.Add(person);
             }
+            droppedOutPeople.ForEach(p => People.Remove(p));
         }
     }
 }
