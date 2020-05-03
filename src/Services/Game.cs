@@ -13,7 +13,7 @@ namespace covidSim.Services
         private static Game _gameInstance;
         private static Random _random = new Random();
         
-        public const int PeopleCount = 300;
+        public const int PeopleCount = 320;
         public const int FieldWidth = 1000;
         public const int FieldHeight = 500;
         public const int MaxPeopleInHouse = 10;
@@ -31,7 +31,7 @@ namespace covidSim.Services
         {
             return Enumerable
                 .Repeat(0, PeopleCount)
-                .Select((_, index) => new Person(index, FindHome(), Map))
+                .Select((_, index) => new Person(index, FindHome(), Map, index <= PeopleCount * 0.03))
                 .ToList();
         }
 
