@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using covidSim.Models;
 
 namespace covidSim.Services
@@ -7,19 +8,21 @@ namespace covidSim.Services
     {
         private const int MaxDistancePerTurn = 30;
         private static Random random = new Random();
+        private readonly CityMap map;
         private PersonState state = PersonState.AtHome;
 
         public Person(int id, int homeId, CityMap map)
         {
             Id = id;
             HomeId = homeId;
+            this.map = map;
 
             var homeCoords = map.Houses[homeId].Coordinates.LeftTopCorner;
             var x = homeCoords.X + random.Next(HouseCoordinates.Width);
             var y = homeCoords.Y + random.Next(HouseCoordinates.Height);
             Position = new Vec(x, y);
         }
-
+        
         public int Id;
         public int HomeId;
         public Vec Position;
@@ -57,7 +60,7 @@ namespace covidSim.Services
             var delta = new Vec(xLength * direction.X, yLength * direction.Y);
             var nextPosition = new Vec(Position.X + delta.X, Position.Y + delta.Y);
 
-            if (isCoordInField(nextPosition))
+            if (isCoordInField(nextPosition) && !IsCoordInAnyHouse(nextPosition))
             {
                 Position = nextPosition;
             }
@@ -122,6 +125,16 @@ namespace covidSim.Services
             var beyondField = vec.X > Game.FieldWidth || vec.Y > Game.FieldHeight;
 
             return !(belowZero || beyondField);
+        }
+
+        private bool IsCoordInAnyHouse(Vec vec) => map.Houses.Any(h => IsCoordInHouse(vec, h));
+
+        private static bool IsCoordInHouse(Vec vec, House house)
+        {
+            return vec.X > house.Coordinates.LeftTopCorner.X &&
+                   vec.X < house.Coordinates.LeftTopCorner.X + HouseCoordinates.Width &&
+                   vec.Y > house.Coordinates.LeftTopCorner.Y &&
+                   vec.Y < house.Coordinates.LeftTopCorner.Y + HouseCoordinates.Height;
         }
     }
 }
