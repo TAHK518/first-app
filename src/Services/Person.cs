@@ -1,13 +1,18 @@
 using System;
+using System.Linq;
 using covidSim.Models;
 
 namespace covidSim.Services
 {
     public class Person
     {
-        private const int MaxDistancePerTurn = 20;
+        private const int MaxDistancePerTurn = 30;
+        private const int TicksToRot = 10;
+        private const double ProbabilityOfDying = 0.000003;
         private static Random random = new Random();
         private PersonState state = PersonState.AtHome;
+        public PersonHealth Health = PersonHealth.Healthy;
+        private readonly CityMap map;
 
         public Person(int id, int homeId, CityMap map, bool isSick)
         {
@@ -16,6 +21,12 @@ namespace covidSim.Services
             IsSick = isSick;
             IsBored = false;
             timeAtHome = 0;
+            this.map = map;
+            if (isSick)
+            {
+                Health = PersonHealth.Sick;
+                StepsToRecovery = 35;
+            }
 
             var homeCoords = map.Houses[homeId].Coordinates.LeftTopCorner;
             var x = homeCoords.X + random.Next(HouseCoordinates.Width);
@@ -31,6 +42,11 @@ namespace covidSim.Services
         public bool IsBored;
         
         private int timeAtHome;
+      
+        public int StepsToRecovery;
+        public int StepsToRot;
+
+        public bool OutOfTheGame => Health == PersonHealth.Dead && StepsToRot == 0;
 
         public void CalcNextStep()
         {
@@ -41,6 +57,23 @@ namespace covidSim.Services
                 timeAtHome = 0;
             }
             IsBored = timeAtHome >= 5;
+       
+            if (Health == PersonHealth.Sick)
+            {
+                StepsToRecovery--;
+                if (StepsToRecovery == 0)
+                    Health = PersonHealth.Healthy;
+                else if (TryToDie())
+                    return;
+            }
+
+            if (Health == PersonHealth.Dead)
+            {
+                StepsToRot--;
+                return;
+            }
+
+
             switch (state)
             {
                 case PersonState.AtHome:                    
@@ -55,13 +88,53 @@ namespace covidSim.Services
             }
         }
 
+        private bool TryToDie()
+        {
+            if (random.NextDouble() > ProbabilityOfDying) return false;
+            Health = PersonHealth.Dead;
+            StepsToRot = TicksToRot;
+            return true;
+        }
+
         private void CalcNextStepForPersonAtHome()
         {
             var goingWalk = random.NextDouble() < 0.005;
-            if (!goingWalk) return;
+            if (!goingWalk)
+                CalcNextPositionForStayingHomePerson();
+            else
+            {
+                state = PersonState.Walking;
+                CalcNextPositionForWalkingPerson();
+            }
 
-            state = PersonState.Walking;
-            CalcNextPositionForWalkingPerson();
+        }
+
+        private void CalcNextPositionForStayingHomePerson()
+        {
+            var nextPosition = GenerateNextRandomPosition();
+
+            if (isCoordInField(nextPosition) && IsCoordsInHouse(nextPosition))
+                Position = nextPosition;
+        }
+
+        private bool IsCoordsInHouse(Vec vec)
+        {
+            var houseCoordinates = map.Houses[HomeId].Coordinates.LeftTopCorner;
+
+            return
+                vec.X >= houseCoordinates.X && vec.X <= HouseCoordinates.Width+ houseCoordinates.X &&
+                vec.Y >= houseCoordinates.Y && vec.Y <= HouseCoordinates.Height+houseCoordinates.Y;
+        }
+
+        private Vec GenerateNextRandomPosition()
+        {
+            var xLength = random.Next(MaxDistancePerTurn);
+            var yLength = MaxDistancePerTurn - xLength;
+            var direction = ChooseDirection();
+            var delta = new Vec(xLength * direction.X, yLength * direction.Y);
+            var nextPosition = new Vec(Position.X + delta.X, Position.Y + delta.Y);
+
+            return nextPosition;
         }
 
         private void CalcNextPositionForWalkingPerson()
@@ -72,7 +145,7 @@ namespace covidSim.Services
             var delta = new Vec(xLength * direction.X, yLength * direction.Y);
             var nextPosition = new Vec(Position.X + delta.X, Position.Y + delta.Y);
 
-            if (isCoordInField(nextPosition))
+            if (isCoordInField(nextPosition) && !IsCoordInAnyHouse(nextPosition))
             {
                 Position = nextPosition;
             }
@@ -99,7 +172,8 @@ namespace covidSim.Services
         {
             var game = Game.Instance;
             var homeCoord = game.Map.Houses[HomeId].Coordinates.LeftTopCorner;
-            var homeCenter = new Vec(homeCoord.X + HouseCoordinates.Width / 2, homeCoord.Y + HouseCoordinates.Height / 2);
+            var homeCenter = new Vec(homeCoord.X + HouseCoordinates.Width / 2,
+                homeCoord.Y + HouseCoordinates.Height / 2);
 
             var xDiff = homeCenter.X - Position.X;
             var yDiff = homeCenter.Y - Position.Y;
@@ -116,7 +190,7 @@ namespace covidSim.Services
 
             var direction = new Vec(Math.Sign(xDiff), Math.Sign(yDiff));
 
-            var xLength = Math.Min(xDistance, MaxDistancePerTurn); 
+            var xLength = Math.Min(xDistance, MaxDistancePerTurn);
             var newX = Position.X + xLength * direction.X;
             var yLength = MaxDistancePerTurn - xLength;
             var newY = Position.Y + yLength * direction.Y;
@@ -150,6 +224,16 @@ namespace covidSim.Services
             var beyondField = vec.X > Game.FieldWidth || vec.Y > Game.FieldHeight;
 
             return !(belowZero || beyondField);
+        }
+
+        private bool IsCoordInAnyHouse(Vec vec) => map.Houses.Any(h => IsCoordInHouse(vec, h));
+
+        private static bool IsCoordInHouse(Vec vec, House house)
+        {
+            return vec.X > house.Coordinates.LeftTopCorner.X &&
+                   vec.X < house.Coordinates.LeftTopCorner.X + HouseCoordinates.Width &&
+                   vec.Y > house.Coordinates.LeftTopCorner.Y &&
+                   vec.Y < house.Coordinates.LeftTopCorner.Y + HouseCoordinates.Height;
         }
     }
 }
