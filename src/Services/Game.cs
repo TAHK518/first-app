@@ -64,10 +64,14 @@ namespace covidSim.Services
         private void CalcNextStep()
         {
             _lastUpdate = DateTime.Now;
+            var droppedOutPeople = new List<Person>();
             foreach (var person in People)
             {
                 person.CalcNextStep();
+                if (person.OutOfTheGame)
+                    droppedOutPeople.Add(person);
             }
+            droppedOutPeople.ForEach(p => People.Remove(p));
         }
     }
 }
